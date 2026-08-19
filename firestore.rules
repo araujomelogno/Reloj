@@ -1,0 +1,71 @@
+rules_version = '2';
+
+// ══════════════════════════════════════════════════════════════════
+//  Reglas de seguridad — Sistema de fichaje de encuestadores
+//  Roles: 'coordinadora' (gestiona todo) y 'encuestador' (solo ficha).
+// ══════════════════════════════════════════════════════════════════
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function miDoc() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+    function esCoordinadora() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && miDoc().data.rol == 'coordinadora';
+    }
+
+    // ── Usuarios (nómina) ──
+    // Cada uno lee su propio doc; la coordinadora lee y gestiona todos.
+    // El primer coordinador se crea manualmente desde la consola de Firebase.
+    match /usuarios/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || esCoordinadora());
+      allow create, update, delete: if esCoordinadora();
+    }
+
+    // ── Fichajes ── id = "{uid}_{YYYY-MM-DD}"
+    match /fichajes/{fid} {
+      allow read: if esCoordinadora()
+        || (signedIn() && resource.data.uid == request.auth.uid);
+      // El encuestador crea SU fichaje del día (id determinístico) con SU uid.
+      allow create: if esCoordinadora()
+        || (signedIn()
+            && request.resource.data.uid == request.auth.uid
+            && fid == (request.auth.uid + '_' + request.resource.data.fecha));
+      // El encuestador actualiza su propio fichaje (registrar la salida).
+      allow update: if esCoordinadora()
+        || (signedIn() && resource.data.uid == request.auth.uid
+            && request.resource.data.uid == request.auth.uid);
+      allow delete: if esCoordinadora();
+    }
+
+    // ── Días libres ── id = "{uid}_{YYYY-MM-DD}"
+    match /diasLibres/{id} {
+      allow read: if esCoordinadora()
+        || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create, update, delete: if esCoordinadora();
+    }
+
+    // ── Configuración (destinatarios del correo de cierre) ──
+    match /config/{doc} {
+      allow read: if signedIn();
+      allow write: if esCoordinadora();
+    }
+
+    // ── Cola de correos (extensión "Trigger Email from Firestore") ──
+    // Solo la coordinadora puede encolar; nadie lee/edita desde el cliente.
+    match /mail/{id} {
+      allow create: if esCoordinadora();
+      allow read, update, delete: if false;
+    }
+
+    // Todo lo demás, denegado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
