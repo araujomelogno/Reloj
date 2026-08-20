@@ -29,8 +29,10 @@ service cloud.firestore {
 
     // ── Fichajes ── id = "{uid}_{YYYY-MM-DD}"
     match /fichajes/{fid} {
+      // resource == null permite leer un documento que aún no existe
+      // (el encuestador consulta su fichaje del día antes de crearlo).
       allow read: if esCoordinadora()
-        || (signedIn() && resource.data.uid == request.auth.uid);
+        || (signedIn() && (resource == null || resource.data.uid == request.auth.uid));
       // El encuestador crea SU fichaje del día (id determinístico) con SU uid.
       allow create: if esCoordinadora()
         || (signedIn()
@@ -46,7 +48,7 @@ service cloud.firestore {
     // ── Días libres ── id = "{uid}_{YYYY-MM-DD}"
     match /diasLibres/{id} {
       allow read: if esCoordinadora()
-        || (signedIn() && resource.data.uid == request.auth.uid);
+        || (signedIn() && (resource == null || resource.data.uid == request.auth.uid));
       allow create, update, delete: if esCoordinadora();
     }
 
