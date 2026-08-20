@@ -690,7 +690,7 @@
     // ════════════════════════════════════════════════════════════════
     const PAGES = [
       { id:'panel',        icon:'📋', label:'Panel del día' },
-      { id:'encuestadores',icon:'👥', label:'Encuestadores' },
+      { id:'encuestadores',icon:'👥', label:'Usuarios' },
       { id:'libres',       icon:'🌴', label:'Días libres' },
       { id:'cierre',       icon:'📨', label:'Cierre del día' },
       { id:'exportar',     icon:'📊', label:'Exportar' },
@@ -804,9 +804,9 @@
     // ── ENCUESTADORES ─────────────────────────────────────────────
     async function pagEncuestadores() {
       const m = $('#main');
-      m.innerHTML = pageHeader('Gestión de', 'encuestadores', 'Alta, estado (activo/inactivo) y horario de trabajo de cada encuestador.') +
-        `<div class="card"><div class="card-header"><span class="card-header-title">Nómina</span>
-          <button class="btn btn-orange btn-sm" id="nuevo-enc">＋ Nuevo encuestador</button></div>
+      m.innerHTML = pageHeader('Gestión de', 'usuarios', 'Alta y gestión de encuestadores y coordinadoras: estado (activo/inactivo) y horario de trabajo.') +
+        `<div class="card"><div class="card-header"><span class="card-header-title">Lista de usuarios</span>
+          <button class="btn btn-orange btn-sm" id="nuevo-enc">＋ Nuevo usuario</button></div>
           <div class="card-body tight"><div id="enc-tabla"><div style="padding:2rem"><div class="spinner"></div></div></div></div></div>`;
       $('#nuevo-enc').onclick = () => modalUsuario(null);
       cargarTablaEncuestadores();
@@ -815,7 +815,7 @@
       const cont = $('#enc-tabla');
       try {
         const usuarios = await getUsuarios();
-        if (!usuarios.length) { cont.innerHTML = `<div class="empty-state"><span class="ei">👥</span>Todavía no hay usuarios. Creá el primero con “Nuevo encuestador”.</div>`; return; }
+        if (!usuarios.length) { cont.innerHTML = `<div class="empty-state"><span class="ei">👥</span>Todavía no hay usuarios. Creá el primero con “Nuevo usuario”.</div>`; return; }
         cont.innerHTML = `<div class="table-wrap"><table>
           <thead><tr><th>Nombre</th><th>Rol</th><th>Estado</th><th>Días</th><th>Hora fin</th><th>Acciones</th></tr></thead>
           <tbody>${usuarios.map(u => {
@@ -855,12 +855,12 @@
       const esNuevo = !u;
       const sel = u ? (u.diasSemana||[]) : [1,2,3,4,5];
       openModal({
-        title: esNuevo ? 'Nuevo encuestador' : 'Editar encuestador',
+        title: esNuevo ? 'Nuevo usuario' : 'Editar usuario',
         body: `
           <div id="mu-alert" class="hidden"></div>
           <div class="form-group"><label>Nombre y apellido</label><input type="text" id="mu-nombre" value="${esc(u?.nombre||'')}" placeholder="Ej. María Pérez" /></div>
           <div class="form-group"><label>Email</label><input type="email" id="mu-email" value="${esc(u?.email||'')}" placeholder="usuario@equipos.com.uy" ${esNuevo?'':'disabled'} />${esNuevo?'':'<div class="field-hint">El email no se puede modificar.</div>'}</div>
-          ${esNuevo ? `<div class="form-group"><label>Contraseña inicial</label><input type="text" id="mu-pass" value="" placeholder="Mínimo 6 caracteres" /><div class="field-hint">El encuestador podrá cambiarla luego con “¿Olvidaste tu contraseña?”.</div></div>` : ''}
+          ${esNuevo ? `<div class="form-group"><label>Contraseña inicial</label><input type="text" id="mu-pass" value="" placeholder="Mínimo 6 caracteres" /><div class="field-hint">El usuario podrá cambiarla luego con “¿Olvidaste tu contraseña?”.</div></div>` : ''}
           <div class="form-row">
             <div class="form-group"><label>Rol</label><select class="fselect" id="mu-rol">
               <option value="encuestador" ${u?.rol!=='coordinadora'?'selected':''}>Encuestador</option>
@@ -872,7 +872,7 @@
           <div class="form-group"><label>Días que trabaja</label>${diasSelectorHTML(sel)}</div>
           <div class="form-group" style="max-width:180px;"><label>Hora de fin de jornada</label><input type="time" id="mu-horafin" value="${esc(u?.horaFin||'18:00')}" /><div class="field-hint">Referencia para evaluar la ausencia al cierre del día.</div></div>
         `,
-        okLabel: esNuevo ? 'Crear encuestador' : 'Guardar cambios',
+        okLabel: esNuevo ? 'Crear usuario' : 'Guardar cambios',
         onOk: async (close, setBusy) => {
           const nombre = $('#mu-nombre').value.trim();
           const email = $('#mu-email').value.trim().toLowerCase();
@@ -894,7 +894,7 @@
               await setDoc(doc(db,'usuarios',uid), {
                 email, nombre, rol, activo, diasSemana: dias, horaFin, createdAt: serverTimestamp()
               });
-              toast('Encuestador creado.', 'ok');
+              toast('Usuario creado.', 'ok');
             } else {
               await updateDoc(doc(db,'usuarios',u.uid), { nombre, rol, activo, diasSemana: dias, horaFin });
               toast('Cambios guardados.', 'ok');
