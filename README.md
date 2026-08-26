@@ -36,7 +36,7 @@ tipografía Montserrat).
 ├── public/
 │   └── index.html          # La aplicación completa (SPA autónoma)
 ├── functions/
-│   ├── index.js            # Cloud Function programada: correo de cierre (R4)
+│   ├── index.js            # Cloud Functions: correo de cierre (R4) + eliminarUsuario
 │   └── package.json
 ├── firestore.rules         # Reglas de seguridad (roles y permisos)
 ├── firestore.indexes.json  # Índice compuesto para el historial de fichajes
@@ -87,7 +87,8 @@ firebase deploy --only firestore
 # La aplicación web
 firebase deploy --only hosting
 
-# La función de correo de cierre (requiere plan Blaze — ver 3.5)
+# Las Cloud Functions: correo de cierre (ver 3.5) y eliminarUsuario
+# (borra credencial de Auth + doc al eliminar un usuario). Requieren plan Blaze.
 cd functions && npm install && cd ..
 firebase deploy --only functions
 ```
@@ -179,8 +180,9 @@ Firestore**; la app y la Cloud Function solo dejan el mensaje en la colección
 - **Encuestadores**: alta (con **cédula**), edición, activar/desactivar,
   **eliminar**, días de trabajo y hora de fin. El reset de contraseña por correo
   está disponible para las coordinadoras (que ingresan con email). Eliminar
-  quita al usuario de la nómina (deja de acceder a la app); sus fichajes y días
-  libres ya registrados no se borran.
+  usa la Cloud Function `eliminarUsuario` (Admin SDK): borra la credencial de
+  Authentication (el email/cédula queda libre para reutilizar) y el documento de
+  la nómina; los fichajes y días libres ya registrados no se borran.
 - **Días libres**: marcá una fecha o rango para uno o varios encuestadores;
   listado por mes con opción de quitar.
 - **Cierre del día**: los que quedaron incompletos (lo mismo que va por correo).

@@ -8,6 +8,7 @@
  * "Trigger Email from Firestore" lo envíe al/los coordinador/es (R4).
  */
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 
@@ -16,6 +17,7 @@ const db = admin.firestore();
 
 const TZ = "America/Montevideo";
 const MAIL_COLLECTION = "mail";
+const REGION = "us-central1";
 
 // ── Utilidades de fecha en la zona de referencia ──
 function fechaHoyTZ() {
@@ -36,7 +38,7 @@ function fechaCorta(f) {
 }
 
 exports.cierreDelDia = onSchedule(
-  { schedule: "59 23 * * *", timeZone: TZ, region: "us-central1" },
+  { schedule: "59 23 * * *", timeZone: TZ, region: REGION },
   async () => {
     const fecha = fechaHoyTZ();
     const wd = weekday(fecha);
@@ -132,3 +134,47 @@ exports.cierreDelDia = onSchedule(
     logger.info(`Correo encolado para ${destinatarios.length} destinatario(s); ${incompletos.length} incompleto(s).`);
   }
 );
+
+/**
+ * eliminarUsuario: función callable que borra por completo a un usuario.
+ * Solo la puede invocar una coordinadora. Elimina la credencial de Firebase
+ * Authentication (para que el email/cédula quede libre para reutilizar) y el
+ * documento de la nómina `usuarios/{uid}`. No borra fichajes ni días libres.
+ */
+exports.eliminarUsuario = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Necesitás iniciar sesión.");
+  }
+  const callerUid = request.auth.uid;
+  const targetUid = request.data && request.data.uid;
+
+  if (!targetUid || typeof targetUid !== "string") {
+    throw new HttpsError("invalid-argument", "Falta el identificador del usuario a eliminar.");
+  }
+  if (targetUid === callerUid) {
+    throw new HttpsError("failed-precondition", "No podés eliminar tu propia cuenta.");
+  }
+
+  // Solo una coordinadora puede eliminar usuarios.
+  const callerSnap = await db.doc(`usuarios/${callerUid}`).get();
+  if (!callerSnap.exists || callerSnap.data().rol !== "coordinadora") {
+    throw new HttpsError("permission-denied", "Solo una coordinadora puede eliminar usuarios.");
+  }
+
+  // 1) Credencial de Authentication (si ya no existe, seguimos igual).
+  try {
+    await admin.auth().deleteUser(targetUid);
+  } catch (e) {
+    if (e.code !== "auth/user-not-found") {
+      logger.error(`No se pudo eliminar la credencial de ${targetUid}`, e);
+      throw new HttpsError("internal", "No se pudo eliminar la credencial del usuario.");
+    }
+    logger.warn(`La credencial de ${targetUid} no existía; se elimina solo el documento.`);
+  }
+
+  // 2) Documento de la nómina.
+  await db.doc(`usuarios/${targetUid}`).delete();
+
+  logger.info(`La coordinadora ${callerUid} eliminó al usuario ${targetUid}.`);
+  return { ok: true };
+});
