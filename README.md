@@ -114,11 +114,27 @@ mano una única vez:
    horaFin:    18:00                         (string)
    ```
 
-3. Entrá a la app con ese usuario. Desde **Encuestadores → Nuevo encuestador**
-   ya podés crear al resto (encuestadores y otras coordinadoras) **sin salir de
-   tu sesión**.
+3. Entrá a la app con ese usuario. Desde **Encuestadores → Nuevo usuario**
+   ya podés crear al resto **sin salir de tu sesión**. Al elegir el rol el
+   formulario pide **email** para las coordinadoras y **cédula** para los
+   encuestadores.
 
 > `diasSemana` usa 0=Domingo … 6=Sábado. `[1,2,3,4,5]` = lunes a viernes.
+
+### Ingreso a la app
+
+La pantalla de login pide **usuario** y **clave**:
+
+- **Coordinadoras** ingresan con su **email**.
+- **Encuestadores** ingresan con su **cédula** (solo los dígitos).
+
+Firebase Authentication trabaja con email, por lo que a cada encuestador se le
+crea un email interno determinístico a partir de su cédula
+(`<cédula>@encuestador.reloj` por defecto; configurable con
+`window.CEDULA_DOMAIN`). Ese email no se usa para enviar correos: es solo la
+identidad de acceso. Por eso el **restablecimiento de contraseña por correo**
+solo aplica a las coordinadoras; la clave inicial del encuestador la define la
+coordinadora al darlo de alta.
 
 ### 3.5. Correo de cierre del día (R4)
 
@@ -160,8 +176,9 @@ Firestore**; la app y la Cloud Function solo dejan el mensaje en la colección
 - **Panel del día**: tarjetas resumen + tabla de todos los encuestadores activos
   con entrada, salida y estado. Los incompletos se destacan en rojo y aparecen
   primero. Se puede navegar a otras fechas.
-- **Encuestadores**: alta, edición, activar/desactivar, reset de contraseña,
-  días de trabajo y hora de fin.
+- **Encuestadores**: alta (con **cédula**), edición, activar/desactivar,
+  días de trabajo y hora de fin. El reset de contraseña por correo está
+  disponible para las coordinadoras (que ingresan con email).
 - **Días libres**: marcá una fecha o rango para uno o varios encuestadores;
   listado por mes con opción de quitar.
 - **Cierre del día**: los que quedaron incompletos (lo mismo que va por correo).
@@ -172,11 +189,13 @@ Firestore**; la app y la Cloud Function solo dejan el mensaje en la colección
 
 ## 5. Modelo de datos (Firestore)
 
-- **`usuarios/{uid}`** — `email, nombre, rol ('encuestador'|'coordinadora'),
-  activo, diasSemana:[0-6], horaFin:'HH:MM', createdAt`
+- **`usuarios/{uid}`** — `nombre, rol ('encuestador'|'coordinadora'), activo,
+  diasSemana:[0-6], horaFin:'HH:MM', createdAt` + el identificador de acceso:
+  `email` para coordinadoras, `cedula` para encuestadores.
 - **`fichajes/{uid}_{YYYY-MM-DD}`** — `uid, email, nombre, fecha, entrada (ts),
-  salida (ts|null), corregido, updatedAt` — el ID determinístico garantiza **un
-  solo par entrada/salida por día**.
+  salida (ts|null), corregido, updatedAt` — el campo `email` guarda el
+  identificador visible (cédula del encuestador); el ID determinístico
+  garantiza **un solo par entrada/salida por día**.
 - **`diasLibres/{uid}_{YYYY-MM-DD}`** — `uid, email, nombre, fecha, motivo,
   createdBy, createdAt`
 - **`config/notificaciones`** — `destinatarios:[email], enviarSiempre?`
