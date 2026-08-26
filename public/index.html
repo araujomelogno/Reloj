@@ -131,6 +131,8 @@
     .btn-green:not(:disabled):hover { background: #17824A; transform: translateY(-1px); box-shadow: 0 5px 16px rgba(30,158,87,0.3); }
     .btn-danger { background: var(--red); color: var(--white); }
     .btn-danger:not(:disabled):hover { background: #962E1E; }
+    .btn-outline.btn-del { color: var(--red); }
+    .btn-outline.btn-del:not(:disabled):hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
     .btn-sm { padding: 0.42rem 0.85rem; font-size: 0.7rem; }
     .btn-full { width: 100%; padding: 0.9rem; font-size: 0.82rem; }
 
@@ -849,12 +851,14 @@
                 <button class="btn btn-outline btn-sm" data-edit="${u.uid}">Editar</button>
                 <button class="btn btn-outline btn-sm" data-toggle="${u.uid}">${u.activo?'Desactivar':'Activar'}</button>
                 ${esCoord ? `<button class="btn btn-outline btn-sm" data-pass="${esc(u.email)}">Reset clave</button>` : ''}
+                ${u.uid !== S.me.uid ? `<button class="btn btn-outline btn-sm btn-del" data-del="${u.uid}">Eliminar</button>` : ''}
               </div></td></tr>`;
           }).join('')}</tbody></table></div>`;
         const usuariosById = Object.fromEntries(usuarios.map(u=>[u.uid,u]));
         cont.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => modalUsuario(usuariosById[b.dataset.edit]));
         cont.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => toggleActivo(usuariosById[b.dataset.toggle]));
         cont.querySelectorAll('[data-pass]').forEach(b => b.onclick = () => resetClave(b.dataset.pass));
+        cont.querySelectorAll('[data-del]').forEach(b => b.onclick = () => eliminarUsuario(usuariosById[b.dataset.del]));
       } catch (e) { console.error(e); cont.innerHTML = `<div class="empty-state">No se pudo cargar la nómina: ${esc(e.message)}</div>`; }
     }
     async function toggleActivo(u) {
@@ -864,6 +868,31 @@
     async function resetClave(email) {
       try { await sendPasswordResetEmail(auth, email); toast(`Enviamos un correo de restablecimiento a ${email}.`, 'ok'); }
       catch (e) { toast('No se pudo enviar: ' + mensajeAuth(e), 'err'); }
+    }
+    function eliminarUsuario(u) {
+      if (u.uid === S.me.uid) { toast('No podés eliminar tu propia cuenta.', 'err'); return; }
+      const esCoord = u.rol === 'coordinadora';
+      const ident = idUsuario(u);
+      openModal({
+        title: 'Eliminar usuario',
+        okLabel: 'Eliminar',
+        okClass: 'btn-danger',
+        body: `
+          <div class="alert alert-warn">Vas a eliminar de la nómina a <strong>${esc(u.nombre||ident||'este usuario')}</strong>${ident?` <span class="td-muted">(${esc(ident)})</span>`:''}.</div>
+          <p style="font-size:.85rem;color:var(--gray);line-height:1.55;margin:0;">
+            ${esCoord ? 'Esta coordinadora' : 'Este encuestador'} dejará de aparecer en el sistema y perderá el acceso a la app.
+            Los fichajes y días libres ya registrados no se borran.<br>
+            <strong>Esta acción no se puede deshacer.</strong>
+          </p>`,
+        onOk: async (close, setBusy) => {
+          setBusy(true);
+          try {
+            await deleteDoc(doc(db,'usuarios',u.uid));
+            toast('Usuario eliminado.', 'ok');
+            close(); cargarTablaEncuestadores();
+          } catch (e) { console.error(e); setBusy(false); toast('No se pudo eliminar: ' + e.message, 'err'); }
+        }
+      });
     }
 
     function diasSelectorHTML(sel) {
@@ -1220,12 +1249,12 @@
     // ════════════════════════════════════════════════════════════════
     //  Modal genérico
     // ════════════════════════════════════════════════════════════════
-    function openModal({ title, body, okLabel, onOk }) {
+    function openModal({ title, body, okLabel, okClass, onOk }) {
       const back = document.createElement('div');
       back.className = 'modal-backdrop';
       back.innerHTML = `<div class="modal-box"><div class="modal-head"><div class="modal-title">${esc(title)}</div><button class="modal-close">×</button></div>
         <div class="modal-body">${body}</div>
-        <div class="modal-foot"><button class="btn btn-outline" data-cancel>Cancelar</button><button class="btn btn-orange" data-ok>${esc(okLabel||'Guardar')}</button></div></div>`;
+        <div class="modal-foot"><button class="btn btn-outline" data-cancel>Cancelar</button><button class="btn ${okClass||'btn-orange'}" data-ok>${esc(okLabel||'Guardar')}</button></div></div>`;
       document.body.appendChild(back);
       const close = () => back.remove();
       const setBusy = (b) => { const ok = back.querySelector('[data-ok]'); ok.disabled = b; ok.textContent = b ? 'Guardando…' : (okLabel||'Guardar'); };

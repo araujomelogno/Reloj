@@ -177,8 +177,10 @@ Firestore**; la app y la Cloud Function solo dejan el mensaje en la colección
   con entrada, salida y estado. Los incompletos se destacan en rojo y aparecen
   primero. Se puede navegar a otras fechas.
 - **Encuestadores**: alta (con **cédula**), edición, activar/desactivar,
-  días de trabajo y hora de fin. El reset de contraseña por correo está
-  disponible para las coordinadoras (que ingresan con email).
+  **eliminar**, días de trabajo y hora de fin. El reset de contraseña por correo
+  está disponible para las coordinadoras (que ingresan con email). Eliminar
+  quita al usuario de la nómina (deja de acceder a la app); sus fichajes y días
+  libres ya registrados no se borran.
 - **Días libres**: marcá una fecha o rango para uno o varios encuestadores;
   listado por mes con opción de quitar.
 - **Cierre del día**: los que quedaron incompletos (lo mismo que va por correo).
