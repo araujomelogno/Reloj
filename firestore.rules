@@ -24,7 +24,11 @@ service cloud.firestore {
     // El primer coordinador se crea manualmente desde la consola de Firebase.
     match /usuarios/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || esCoordinadora());
-      allow create, update, delete: if esCoordinadora();
+      allow create, update: if esCoordinadora();
+      // La baja se hace con la Cloud Function `eliminarUsuario` (Admin SDK), que
+      // también borra la credencial de Authentication. No se permite eliminar el
+      // documento directamente desde el cliente.
+      allow delete: if false;
     }
 
     // ── Fichajes ── id = "{uid}_{YYYY-MM-DD}"
