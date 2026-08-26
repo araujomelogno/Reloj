@@ -63,11 +63,13 @@ exports.cierreDelDia = onSchedule(
       if (u.rol !== "encuestador" || !u.activo) return;
       if (!(u.diasSemana || []).includes(wd)) return; // hoy no trabaja
       if (libres.has(uid)) return; // día libre
+      // Identificador visible del encuestador: cédula (o email en altas previas al cambio).
+      const ident = u.cedula || u.email || "";
       const f = fMap[uid];
       if (!f || !f.entrada) {
-        incompletos.push({ nombre: u.nombre || u.email, email: u.email, motivo: "No fichó" });
+        incompletos.push({ nombre: u.nombre || ident, email: ident, motivo: "No fichó" });
       } else if (!f.salida) {
-        incompletos.push({ nombre: u.nombre || u.email, email: u.email, motivo: "Fichó entrada pero no salida" });
+        incompletos.push({ nombre: u.nombre || ident, email: ident, motivo: "Fichó entrada pero no salida" });
       }
     });
 
