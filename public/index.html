@@ -741,6 +741,7 @@
       { id:'libres',       icon:'🌴', label:'Días libres' },
       { id:'cierre',       icon:'📨', label:'Cierre del día' },
       { id:'exportar',     icon:'📊', label:'Exportar' },
+      { id:'liquidacion',  icon:'🧾', label:'Archivo liquidación' },
       { id:'config',       icon:'⚙️', label:'Notificaciones' },
     ];
     let _page = 'panel';
@@ -776,7 +777,7 @@
     function abrirPagina(id) {
       const m = $('#main'); if (!m) return;
       m.innerHTML = `<div class="center-screen" style="min-height:40vh"><div class="spinner"></div></div>`;
-      ({ panel:pagPanel, encuestadores:pagEncuestadores, libres:pagLibres, cierre:pagCierre, exportar:pagExportar, config:pagConfig }[id] || pagPanel)();
+      ({ panel:pagPanel, encuestadores:pagEncuestadores, libres:pagLibres, cierre:pagCierre, exportar:pagExportar, liquidacion:pagLiquidacion, config:pagConfig }[id] || pagPanel)();
     }
     function pageHeader(titulo, acento, sub) {
       return `<div class="page-header"><div class="accent-bar"></div>
@@ -1301,6 +1302,81 @@
         st.innerHTML = `<div class="alert alert-success">Listo: ${n} registro(s) exportado(s).</div>`;
       } catch (e) { console.error(e); st.innerHTML = `<div class="alert alert-error">No se pudo exportar: ${esc(e.message)}</div>`; }
       btn.disabled = false; btn.textContent = '⬇ Descargar Excel';
+    }
+
+    // ── ARCHIVO DE LIQUIDACIÓN (CSV) ──────────────────────────────
+    // Fecha 'YYYY-MM-DD' → 'DD/MM/AA' (año de 2 dígitos).
+    function fechaDDMMAA(fechaStr) {
+      const [y,m,d] = fechaStr.split('-');
+      return `${d}/${m}/${y.slice(2)}`;
+    }
+    // Horas (decimal) entre dos marcas de tiempo (salida − entrada).
+    function horasEntre(entrada, salida) {
+      const e = entrada.toDate ? entrada.toDate() : entrada;
+      const s = salida.toDate ? salida.toDate() : salida;
+      return (s.getTime() - e.getTime()) / 3600000;
+    }
+    // Escapa un valor para CSV con separador ';'.
+    function csvCell(v) {
+      const s = String(v ?? '');
+      return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    async function pagLiquidacion() {
+      const m = $('#main');
+      const hace30 = sumarDias(hoyStr(), -29);
+      m.innerHTML = pageHeader('Archivo', 'liquidación', 'Generá el archivo .csv de liquidación por hora para un rango de fechas.') +
+        `<div class="card"><div class="card-body">
+          <div class="form-row">
+            <div class="form-group"><label>Desde</label><input type="date" id="lq-desde" value="${hace30}" /></div>
+            <div class="form-group"><label>Hasta</label><input type="date" id="lq-hasta" value="${hoyStr()}" /></div>
+          </div>
+          <div class="alert alert-info">Incluye solo los fichajes <strong>completos</strong> (con entrada y salida). Una fila por fichaje, sin encabezados, separadas por punto y coma (<code>;</code>). La cantidad de horas es la diferencia entre salida y entrada.</div>
+          <button class="btn btn-orange" id="lq-btn">⬇ Descargar CSV</button>
+          <div id="lq-status" style="margin-top:1rem;"></div>
+        </div></div>`;
+      $('#lq-btn').onclick = exportarLiquidacion;
+    }
+    async function exportarLiquidacion() {
+      const desde = $('#lq-desde').value, hasta = $('#lq-hasta').value;
+      const st = $('#lq-status');
+      if (!desde || !hasta) { st.innerHTML = `<div class="alert alert-error">Elegí las fechas.</div>`; return; }
+      if (hasta < desde) { st.innerHTML = `<div class="alert alert-error">El “hasta” no puede ser anterior al “desde”.</div>`; return; }
+      const btn = $('#lq-btn'); btn.disabled = true; btn.textContent = 'Generando…';
+      st.innerHTML = `<div class="spinner"></div>`;
+      try {
+        const usuarios = (await getUsuarios()).filter(u => u.rol === 'encuestador');
+        const usById = Object.fromEntries(usuarios.map(u => [u.uid, u]));
+        const fqs = await getDocs(query(collection(db,'fichajes'), where('fecha','>=',desde), where('fecha','<=',hasta)));
+        // Solo fichajes completos (entrada y salida), ordenados por fecha y nombre.
+        const registros = fqs.docs
+          .map(d => d.data())
+          .filter(x => x.entrada && x.salida && usById[x.uid])
+          .sort((a,b) => (a.fecha||'').localeCompare(b.fecha||'') ||
+            (usById[a.uid].nombre||'').localeCompare(usById[b.uid].nombre||''));
+        if (!registros.length) { st.innerHTML = `<div class="alert alert-info">No hay fichajes completos (entrada y salida) en el rango elegido; no se generó ningún archivo.</div>`; btn.disabled = false; btn.textContent = '⬇ Descargar CSV'; return; }
+        const filas = registros.map(x => {
+          const u = usById[x.uid];
+          const horas = Math.round(horasEntre(x.entrada, x.salida) * 100) / 100;
+          return [
+            u.nombre || '',        // Nombre encuestador
+            fechaDDMMAA(x.fecha),  // Fecha de fichaje
+            idUsuario(u),          // Cédula encuestador
+            'Reloj', 'JN', 'Por Hora', 'N/A',
+            0,                     // número 0
+            horas,                 // cantidad de horas (salida − entrada)
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // diez ceros
+          ].map(csvCell).join(';');
+        });
+        const csv = '\uFEFF' + filas.join('\r\n') + '\r\n';
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `liquidacion_${desde}_a_${hasta}.csv`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        st.innerHTML = `<div class="alert alert-success">Listo: ${filas.length} fichaje(s) completo(s) exportado(s).</div>`;
+      } catch (e) { console.error(e); st.innerHTML = `<div class="alert alert-error">No se pudo generar el archivo: ${esc(e.message)}</div>`; }
+      btn.disabled = false; btn.textContent = '⬇ Descargar CSV';
     }
 
     // ── NOTIFICACIONES (destinatarios del correo de cierre) ───────
