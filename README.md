@@ -194,7 +194,8 @@ Firestore**; la app y la Cloud Function solo dejan el mensaje en la colección
 - **Archivo liquidación**: rango de fechas → archivo `.csv` (separado por `;`, sin
   encabezados) con una fila por fichaje **completo** (entrada y salida). Columnas:
   nombre, fecha (DD/MM/AA), cédula, `Reloj`, `JN`, `Por Hora`, `N/A`, `0`, cantidad
-  de horas (salida − entrada, decimal) y diez columnas con `0`.
+  de horas (salida − entrada, decimal) y diez columnas con `0`. La cantidad de horas
+  tiene un tope: **5,5 h** los días de semana y **7 h** los fines de semana.
 - **Notificaciones**: destinatarios del correo de cierre.
 
 ---

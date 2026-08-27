@@ -1330,7 +1330,7 @@
             <div class="form-group"><label>Desde</label><input type="date" id="lq-desde" value="${hace30}" /></div>
             <div class="form-group"><label>Hasta</label><input type="date" id="lq-hasta" value="${hoyStr()}" /></div>
           </div>
-          <div class="alert alert-info">Incluye solo los fichajes <strong>completos</strong> (con entrada y salida). Una fila por fichaje, sin encabezados, separadas por punto y coma (<code>;</code>). La cantidad de horas es la diferencia entre salida y entrada.</div>
+          <div class="alert alert-info">Incluye solo los fichajes <strong>completos</strong> (con entrada y salida). Una fila por fichaje, sin encabezados, separadas por punto y coma (<code>;</code>). La cantidad de horas es la diferencia entre salida y entrada, con un tope de <strong>5,5 h</strong> los días de semana y <strong>7 h</strong> los fines de semana.</div>
           <button class="btn btn-orange" id="lq-btn">⬇ Descargar CSV</button>
           <div id="lq-status" style="margin-top:1rem;"></div>
         </div></div>`;
@@ -1356,7 +1356,10 @@
         if (!registros.length) { st.innerHTML = `<div class="alert alert-info">No hay fichajes completos (entrada y salida) en el rango elegido; no se generó ningún archivo.</div>`; btn.disabled = false; btn.textContent = '⬇ Descargar CSV'; return; }
         const filas = registros.map(x => {
           const u = usById[x.uid];
-          const horas = Math.round(horasEntre(x.entrada, x.salida) * 100) / 100;
+          // Tope de horas según el día: 5,5 entre semana (lun–vie) y 7 el fin de semana (sáb–dom).
+          const wd = weekdayDe(x.fecha);
+          const tope = (wd === 0 || wd === 6) ? 7 : 5.5;
+          const horas = Math.min(Math.round(horasEntre(x.entrada, x.salida) * 100) / 100, tope);
           return [
             u.nombre || '',        // Nombre encuestador
             fechaDDMMAA(x.fecha),  // Fecha de fichaje
