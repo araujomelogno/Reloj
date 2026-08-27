@@ -176,7 +176,10 @@ Firestore**; la app y la Cloud Function solo dejan el mensaje en la colección
 ### Coordinadora
 - **Panel del día**: tarjetas resumen + tabla de todos los encuestadores activos
   con entrada, salida y estado. Los incompletos se destacan en rojo y aparecen
-  primero. Se puede navegar a otras fechas.
+  primero. Se puede navegar a otras fechas. Desde el botón **Editar** de cada
+  fila la coordinadora corrige manualmente la hora de entrada/salida del día
+  (o borra el fichaje dejando ambas vacías); los fichajes editados quedan
+  marcados con ✎.
 - **Encuestadores**: alta (con **cédula**), edición, activar/desactivar,
   **eliminar**, días de trabajo y hora de fin. El reset de contraseña por correo
   está disponible para las coordinadoras (que ingresan con email). Eliminar

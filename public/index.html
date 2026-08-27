@@ -210,6 +210,7 @@
     .badge-user { background: var(--gray-light); color: var(--gray); }
     .badge-on { background: var(--green-light); color: var(--green); }
     .badge-off { background: var(--gray-light); color: var(--gray); }
+    .corr-mark { display: inline-block; margin-left: 0.15rem; color: var(--amber); font-size: 0.78rem; cursor: help; vertical-align: baseline; }
     .est { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.7rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; }
     .est::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
     .est-completa { background: var(--green-light); color: var(--green); }
@@ -413,6 +414,29 @@
     }
     function horaAhora() {
       return new Intl.DateTimeFormat('es-UY', { timeZone: TZ, hour:'2-digit', minute:'2-digit', hour12:false }).format(new Date());
+    }
+    // Hora 'HH:MM' (en la zona TZ) de un timestamp, o '' si no hay. Sirve para inputs type=time.
+    function horaInput(ts) {
+      if (!ts) return '';
+      const d = ts.toDate ? ts.toDate() : ts;
+      return new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour:'2-digit', minute:'2-digit', hour12:false }).format(d);
+    }
+    // Offset (en minutos) de la zona TZ respecto de UTC en el instante dado.
+    function offsetTZmin(date) {
+      const p = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour12:false,
+        year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' }).formatToParts(date);
+      const o = {}; p.forEach(x => o[x.type] = x.value);
+      const h = o.hour === '24' ? 0 : Number(o.hour);
+      const asUTC = Date.UTC(Number(o.year), Number(o.month)-1, Number(o.day), h, Number(o.minute), Number(o.second));
+      return (asUTC - date.getTime()) / 60000;
+    }
+    // Convierte una fecha 'YYYY-MM-DD' + hora 'HH:MM' interpretadas en la zona TZ al Date (instante) correspondiente.
+    function fechaHoraADate(fechaStr, horaStr) {
+      const [y,m,d] = fechaStr.split('-').map(Number);
+      const [hh,mm] = horaStr.split(':').map(Number);
+      const utcGuess = Date.UTC(y, m-1, d, hh, mm);
+      const off = offsetTZmin(new Date(utcGuess));
+      return new Date(utcGuess - off*60000);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -812,16 +836,64 @@
         </div>`;
         if (!rows.length) { body.innerHTML = stats + `<div class="empty-state"><span class="ei">👥</span>No hay encuestadores activos para mostrar.</div>`; return; }
         const tabla = `<div class="table-wrap"><table>
-          <thead><tr><th>Encuestador</th><th>Entrada</th><th>Salida</th><th>Estado</th></tr></thead>
+          <thead><tr><th>Encuestador</th><th>Entrada</th><th>Salida</th><th>Estado</th><th></th></tr></thead>
           <tbody>${rows.map(r => `<tr>
             <td><div style="display:flex;align-items:center;gap:.6rem;"><div class="user-avatar" style="width:30px;height:30px;font-size:.72rem;background:${esIncompleto(r.est)?'var(--red)':'var(--orange)'}">${esc(initials(r.u.nombre,idUsuario(r.u)))}</div>
               <div><div class="td-strong">${esc(r.u.nombre||idUsuario(r.u))}</div><div class="td-muted" style="font-size:.72rem;">${esc(idUsuario(r.u))}</div></div></div></td>
-            <td class="mono">${fmtHora(r.f && r.f.entrada)}</td>
+            <td class="mono">${fmtHora(r.f && r.f.entrada)}${r.f && r.f.corregido ? ' <span class="corr-mark" title="Fichaje editado por la coordinación">✎</span>' : ''}</td>
             <td class="mono">${fmtHora(r.f && r.f.salida)}</td>
             <td><span class="est est-${r.est}">${ESTADO_LABEL[r.est]}</span></td>
+            <td class="nowrap"><button class="btn btn-outline btn-sm" data-editf="${r.u.uid}">Editar</button></td>
           </tr>`).join('')}</tbody></table></div>`;
         body.innerHTML = stats + tabla;
+        const rowsByUid = Object.fromEntries(rows.map(r => [r.u.uid, r]));
+        body.querySelectorAll('[data-editf]').forEach(b => b.onclick = () => {
+          const r = rowsByUid[b.dataset.editf];
+          modalEditarFichaje(r.u, r.f);
+        });
       } catch (e) { console.error(e); body.innerHTML = `<div class="empty-state">No se pudo cargar el panel: ${esc(e.message)}</div>`; }
+    }
+    function modalEditarFichaje(u, f) {
+      const fecha = _panelFecha;
+      openModal({
+        title: 'Editar fichaje',
+        okLabel: 'Guardar fichaje',
+        body: `
+          <div id="ef-alert" class="hidden"></div>
+          <p style="font-size:.85rem;color:var(--gray);margin:-0.25rem 0 1rem;line-height:1.4;">
+            <strong style="color:var(--dark);">${esc(u.nombre||idUsuario(u))}</strong><br>${esc(fechaLarga(fecha))}
+          </p>
+          <div class="form-row">
+            <div class="form-group"><label>Entrada</label><input type="time" id="ef-entrada" value="${esc(horaInput(f && f.entrada))}" /></div>
+            <div class="form-group"><label>Salida</label><input type="time" id="ef-salida" value="${esc(horaInput(f && f.salida))}" /></div>
+          </div>
+          <div class="field-hint">Las horas se registran en horario de Uruguay. Dejá un campo vacío para borrar esa marca; si borrás las dos, se elimina el fichaje del día.</div>
+        `,
+        onOk: async (close, setBusy) => {
+          const eIn = $('#ef-entrada').value;
+          const sIn = $('#ef-salida').value;
+          const alertBox = $('#ef-alert');
+          const err = (m) => { alertBox.className='alert alert-error'; alertBox.textContent=m; };
+          if (sIn && !eIn) return err('No puede haber salida sin una entrada.');
+          if (eIn && sIn && sIn < eIn) return err('La salida no puede ser anterior a la entrada.');
+          setBusy(true);
+          try {
+            const ref = doc(db, 'fichajes', fichajeId(u.uid, fecha));
+            if (!eIn && !sIn) {
+              if (f) { await deleteDoc(ref); toast('Fichaje eliminado.', 'ok'); }
+            } else {
+              await setDoc(ref, {
+                uid: u.uid, email: idUsuario(u), nombre: u.nombre || idUsuario(u), fecha,
+                entrada: eIn ? fechaHoraADate(fecha, eIn) : null,
+                salida:  sIn ? fechaHoraADate(fecha, sIn) : null,
+                corregido: true, updatedAt: serverTimestamp()
+              });
+              toast('Fichaje guardado.', 'ok');
+            }
+            close(); cargarPanel();
+          } catch (e) { console.error(e); setBusy(false); err('No se pudo guardar: ' + e.message); }
+        }
+      });
     }
 
     // ── ENCUESTADORES ─────────────────────────────────────────────
