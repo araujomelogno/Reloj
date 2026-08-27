@@ -191,6 +191,10 @@ Firestore**; la app y la Cloud Function solo dejan el mensaje en la colección
 - **Cierre del día**: los que quedaron incompletos (lo mismo que va por correo).
 - **Exportar**: rango de fechas → archivo `.xlsx`. Incluye solo los días con
   entrada fichada (entrada+salida o solo entrada); los días sin fichaje se omiten.
+- **Archivo liquidación**: rango de fechas → archivo `.csv` (separado por `;`, sin
+  encabezados) con una fila por fichaje **completo** (entrada y salida). Columnas:
+  nombre, fecha (DD/MM/AA), cédula, `Reloj`, `JN`, `Por Hora`, `N/A`, `0`, cantidad
+  de horas (salida − entrada, decimal) y diez columnas con `0`.
 - **Notificaciones**: destinatarios del correo de cierre.
 
 ---
