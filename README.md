@@ -189,7 +189,8 @@ Firestore**; la app y la Cloud Function solo dejan el mensaje en la colección
 - **Días libres**: marcá una fecha o rango para uno o varios encuestadores;
   listado por mes con opción de quitar.
 - **Cierre del día**: los que quedaron incompletos (lo mismo que va por correo).
-- **Exportar**: rango de fechas → archivo `.xlsx`.
+- **Exportar**: rango de fechas → archivo `.xlsx`. Incluye solo los días con
+  entrada fichada (entrada+salida o solo entrada); los días sin fichaje se omiten.
 - **Notificaciones**: destinatarios del correo de cierre.
 
 ---
