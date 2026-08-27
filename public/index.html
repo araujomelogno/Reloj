@@ -1255,7 +1255,7 @@
             <div class="form-group"><label>Desde</label><input type="date" id="ex-desde" value="${hace30}" /></div>
             <div class="form-group"><label>Hasta</label><input type="date" id="ex-hasta" value="${hoyStr()}" /></div>
           </div>
-          <div class="alert alert-info">El archivo incluye, por encuestador y por día: fecha, nombre, cédula, entrada, salida y estado (completa / no fichó / sin salida / día libre / no corresponde).</div>
+          <div class="alert alert-info">El archivo incluye únicamente los días en que el encuestador <strong>fichó entrada</strong> (entrada y salida, o solo entrada). Los días sin fichaje no se incluyen. Columnas: fecha, nombre, cédula, entrada, salida y estado.</div>
           <button class="btn btn-orange" id="ex-btn">⬇ Descargar Excel</button>
           <div id="ex-status" style="margin-top:1rem;"></div>
         </div></div>`;
@@ -1283,13 +1283,16 @@
         for (let f = desde; f <= hasta; f = sumarDias(f,1)) {
           for (const u of usuarios) {
             const fich = fMap[`${u.uid}_${f}`];
+            // Solo se exportan los días en que el encuestador fichó entrada
+            // (entrada+salida o solo entrada); se omiten los que no ficharon.
+            if (!fich || !fich.entrada) continue;
             const est = estadoJornada(u, fich, lSet.has(`${u.uid}_${f}`), f);
-            if (est === 'no_correspondia' && !fich) continue; // no ensuciar el export con días no laborales sin fichaje
             rows.push([ fechaCorta(f), DIAS[weekdayDe(f)], u.nombre||'', idUsuario(u),
               fich&&fich.entrada?fmtHora(fich.entrada):'', fich&&fich.salida?fmtHora(fich.salida):'', ESTADO_LABEL[est] ]);
             n++;
           }
         }
+        if (!n) { st.innerHTML = `<div class="alert alert-info">No hay fichajes con entrada en el rango elegido; no se generó ningún archivo.</div>`; btn.disabled = false; btn.textContent = '⬇ Descargar Excel'; return; }
         const ws = XLSX.utils.aoa_to_sheet(rows);
         ws['!cols'] = [{wch:11},{wch:6},{wch:24},{wch:28},{wch:9},{wch:9},{wch:16}];
         const wb = XLSX.utils.book_new();
